@@ -1,0 +1,265 @@
+---
+name: "Reuben-website"
+title: "Covid Website"
+description: |
+  Welcome to my personal website. Explore my journey in data science, Fin-Tech, and analytics.
+logo: "path/to/logo.png"  # Optional: Add a logo for branding
+theme: theme.css
+output_dir: "docs"
+navbar:
+  right:
+    - text: "Home"
+      href: index.html
+    - text: "LinkedIn"
+      href: https://www.linkedin.com/in/kr2026  # Link your LinkedIn
+    - text: "GitHub"
+      href: https://github.com/your-username  # Add GitHub if relevant
+output: distill::distill_article
+---
+
+
+Greetings! <span class="wave">👋</span> Glad to have you here on my site!
+
+I'm Reuben, and I work in Fin-Tech, where I’m passionate about using data analytics and customer insights to drive breakthroughs for businesses. My focus is on leveraging data to create innovative solutions, especially in areas like financial technology, customer engagement, and market research.
+
+This website is my personal space where I share my thoughts, projects, and experiments—things that normally live in my notes app. Whether it’s digging into datasets or reflecting on emerging trends, this is where I document my journey in the data science world.
+
+1.[More about me](https://github.com/DataGuy-Kariuki)
+
+I am a data scientist with a strong background in data analytics and machine learning. Over the years, I have honed my skills in analyzing data to help businesses make data-driven decisions. I enjoy working with complex datasets, uncovering hidden patterns, and transforming raw data into actionable insights.
+
+In my free time, I love keeping up with the latest trends in AI and deep learning, and you can often find me watching football or tuning into podcasts
+
+2.[Linkedin](https://www.linkedin.com/in/kr2026?)
+
+3.[Data Science Books](https://github.com/DataGuy-Kariuki/Data-Science-)
+
+## Tools & Skills
+
+I have a strong background in working with various tools and platforms to handle data effectively. Below are the key tools and skills I use in my day-to-day work:
+
+- **R**: Advanced proficiency in data analysis, visualization, and statistical modeling.
+- **SQL**: Expertise in database querying and manipulation.
+- **Excel**: Advanced knowledge in handling complex spreadsheets, data analysis, and automation.
+- **Tableau**: Skilled in creating interactive dashboards and data visualizations.
+- **PowerPoint**: Proficient in creating impactful presentations.
+- **Presentation Skills**: Strong ability to communicate insights and data findings to diverse audiences.
+- **Learning Python/Shiny**: Continuously expanding my programming skills to include more automation and web-based data apps.
+- **Learning Power BI**: Learning how to integrate data insights into intuitive dashboards and reports.
+
+I am always eager to learn and adopt new tools that help me deliver data-driven solutions more effectively.
+
+
+
+---
+title: "Reuben Website"
+description: "Welcome to my personal website where I share my journey in Fin-Tech, data science, and analytics. Explore my insights, projects, and thoughts on data-driven solutions."
+site: distill::distill_website
+---
+
+
+# About this Project
+
+During the COVID-19 pandemic, I was inspired by the importance of accessible data. I realized that timely and accurate data could significantly impact daily decisions, especially during critical times like a public health crisis. That’s why I decided to build this project, a website where I track COVID-19 data in the U.S. over time, helping people make informed decisions based on the latest data.
+
+## First steps is installing packages and loading them into r.
+
+```{r}
+# Install packages
+
+#install.packages("janitor")
+#install.packages("tigris")
+#install.packages("gt")
+
+# Load packages
+library(tidyverse)
+library(janitor)
+library(tigris)
+library(gt)
+library(lubridate)
+```
+
+*The tidyverse for data import, manipulation, and plotting (with ggplot)*
+*janitor for its clean_names() function, which makes the variable names easier to work with* 
+*tigris to import geospatial data about states; gt for making nice tables*
+*lubridate to work with dates*
+
+## Next step import and clean the data, add this new code chunk:
+
+```{r}
+# Import data
+
+us_states <- states(
+  cb = TRUE,
+  resolution = "20m",
+  progress_bar = FALSE
+) %>%
+  shift_geometry() %>%
+  clean_names() %>%
+  select(geoid, name) %>%
+  rename(state = name) %>%
+  filter(state %in% state.name)
+
+covid_data <- read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/rolling-averages/us-states.csv") %>%
+  filter(state %in% state.name) %>%
+  mutate(geoid = str_remove(geoid, "USA-"))
+
+last_day <- covid_data %>%
+  slice_max(
+    order_by = date,
+    n = 1
+  ) %>%
+  distinct(date) %>%
+  mutate(date_nice_format = str_glue("{month(date, label = TRUE, abbr = FALSE)} {day(date)}, {year(date)}")) %>%
+  pull(date_nice_format)
+```
+
+# COVID Death Rates as of `r last_day`
+
+*This code uses the slice_max() function to get the latest date in the covid_data data frame*
+*It uses distinct() to get a single observation of the most recent date (each date shows up multiple times in the covid_data data frame)*
+*The code then creates a date_nice_format variable using the str_glue() function to combine easy-to-read versions of the month, day, and year*
+*Finally, the pull() function turns the data frame into a single variable called last_day, which is referenced later in a text section*
+
+Using inline R code, this header now displays the current date.
+
+Include the following code to make a table showing the death rates per 100,000 people in four states (using all states would create too large a table):
+
+*The reactable() function also enables sorting by default*
+*Although you used the arrange() function in your code to sort the data by state name, users can click the “Death rate” column to sort values using that variable instead*
+
+
+```{r}
+#install.packages("reactable")
+library(reactable)
+
+covid_data %>%
+  slice_max(
+    order_by = date,
+    n = 1
+  ) %>%
+  select(state, deaths_avg_per_100k) %>%
+  arrange(state) %>%
+  set_names("State", "Death rate") %>%
+  reactable()
+```
+*The filter() function filters the data down to four states,and the slice_max() function gets the latest date*
+*The code then selects the relevant variables (state and deaths_avg_per_100k), arranges the data in alphabetical order by state, sets the variable names, and pipes this output into a table made with the gt package.*
+
+
+## We can see this same death rate data for all states on a map.
+
+```{r}
+most_recent <- us_states %>%
+  left_join(covid_data, by = "state") %>%
+  slice_max(
+    order_by = date,
+    n = 1
+  )
+
+most_recent %>%
+  ggplot(aes(fill = deaths_avg_per_100k)) +
+  geom_sf() +
+  scale_fill_viridis_c(option = "rocket") +
+  labs(fill = "Deaths per\n100,000 people") +
+  theme_void()
+```
+
+*This code creates a most_recent data frame by joining the us_states geospatial data with the covid_data data frame before filtering to include only the most recent date*
+*Then, it uses most_recent to create a map that shows deaths per 100,000 people*
+*Finally,to make a chart that shows COVID death rates over time in the four states from the table, add the following*
+
+
+# COVID Death Rates Over Time
+
+The following chart shows COVID death rates from the start of COVID in early 2020 until `r last_day`.
+
+```{r}
+covid_data %>%
+  filter(state %in% c(
+    "Alabama",
+    "Alaska",
+    "Arizona",
+    "Arkansas"
+  )) %>%
+  ggplot(aes(
+    x = date,
+    y = deaths_avg_per_100k,
+    group = state,
+    fill = deaths_avg_per_100k
+  )) +
+  geom_col() +
+  scale_fill_viridis_c(option = "rocket") +
+  theme_minimal() +
+  labs(title = "Deaths per 100,000 people over time") +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank()
+  ) +
+  facet_wrap(
+    ~state,
+    nrow = 2
+  )
+```
+
+
+# Creating a Hovering Tooltip with plotly
+
+*First, install plotly with install.packages("plotly")*
+*Create a plot with ggplot and save it as an object*
+*Pass the object to the ggplotly() function, which turns it into an interactive plot*
+
+Run the following code to apply plotly to the chart of COVID death rates over time:
+
+
+```{r}
+#install.packages("plotly")
+library(plotly)
+
+covid_chart <- covid_data %>%
+  filter(state %in% c(
+    "Alabama",
+    "Alaska",
+    "Arizona",
+    "Arkansas"
+  )) %>%
+  ggplot(aes(
+    x = date,
+    y = deaths_avg_per_100k,
+    group = state,
+    fill = deaths_avg_per_100k
+  )) +
+  geom_col() +
+  scale_fill_viridis_c(option = "rocket") +
+  theme_minimal() +
+  labs(title = "Deaths per 100,000 people over time") +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title = element_blank()
+  ) +
+  facet_wrap(
+    ~state,
+    nrow = 2
+  )
+
+ggplotly(covid_chart)
+```
+
+# Final Thoughts
+
+Thank you for visiting my personal website! Whether you’re interested in data science, Fin-Tech,E-commerce or simply curious about my work, I hope you’ve found something insightful here. My journey in leveraging data to drive innovation is just beginning, and I’m excited to share my thoughts, projects, and insights with you along the way.
+
+Feel free to explore, connect, and reach out—whether it’s for collaboration, discussion, or just to say hello. Let's continue pushing the boundaries of data and technology together!
+
+
+**Email**: reubenmwas51@gmail.com  
+**Contacts**: +254704033459
+
+
+
